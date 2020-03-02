@@ -1,0 +1,2 @@
+# eq_spider4redis
+基于scrapy_redis分布式spider

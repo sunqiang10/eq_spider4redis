@@ -9,6 +9,8 @@ from scrapy import signals
 from scrapy.downloadermiddlewares.useragent import UserAgentMiddleware
 import random
 import os
+import redis
+
 class MyUserAgentMiddleware(UserAgentMiddleware):
     def __init__(self, user_agent):
         self.user_agent = user_agent
@@ -26,42 +28,46 @@ class MyUserAgentMiddleware(UserAgentMiddleware):
         request.headers['User-Agent'] = agent
 
 class ProxyMiddleware(object):
-    proxyCount=0
-    proxyTotal=0
     #"""docstring for ProxyMiddleWare"""  
     def process_request(self,request, spider):  
         #'''对request对象加上proxy'''  
-        proxy = self.get_random_proxy()  
-        print("this is request ip:"+proxy)
-        request.meta['proxy'] = proxy   
+        self.scrapy_proxy = self.get_random_proxy(spider)  
+        print("this is request ip:"+self.scrapy_proxy)
+        if self.scrapy_proxy == '':
+            # 将IP从当前的request对象中删除
+            pass
+        else:
+            request.meta['proxy'] = self.scrapy_proxy   
   
   
     def process_response(self, request, response, spider):  
-        #'''对返回的response处理'''  
-        # 如果返回的response状态不是200，重新生成当前request对象  
+        #'''对返回的response处理'''         
         print(response.status)
-        if (response.status != 200) and (self.proxyCount <= self.proxyTotal):  
-            proxy = self.get_random_proxy()  
-            print("this is response ip:"+proxy+"proxyCount:"+str(self.proxyCount)+"proxyTotal:"+str(self.proxyTotal))
-            request.meta['proxy'] = proxy
-            self.proxyCount+=1
-            return request  
+         # 如果返回的response状态不是200，重新生成当前request对象  
+        if (response.status != 200):  
+            self.scrapy_proxy = self.get_random_proxy(spider)  
+            print("this is response ip:"+self.scrapy_proxy)
+            if self.scrapy_proxy == '':
+                pass
+            else:
+                request.meta['proxy'] = self.scrapy_proxy   
+            return request
+        if (response.status == 200 and self.scrapy_proxy != ''):  
+            redis_password = spider.settings.get('REDIS_PARAMS')['password']
+            pool = redis.ConnectionPool(host='127.0.0.1', port=6379, password=redis_password)
+            r = redis.Redis(connection_pool=pool) 
+            ip = r.sadd('proxy_set',self.scrapy_proxy)
         return response  
   
-    def get_random_proxy(self):  
-        #'''随机从文件中读取proxy'''  
-        while 1:  
-            path = os.path.abspath('.')
-            print(path)
-            with open(path+os.sep+'proxies.txt', 'r') as f:  
-                proxies = f.readlines()  
-            if proxies:  
-                break  
-            else:  
-                time.sleep(1)  
-        self.proxyTotal = len(proxies)
-        proxy = random.choice(proxies).strip()  
-        return proxy  
+    def get_random_proxy(self, spider):  
+        redis_password = spider.settings.get('REDIS_PARAMS')['password']
+        pool = redis.ConnectionPool(host='127.0.0.1', port=6379, password=redis_password)
+        ip=''
+        r = redis.Redis(connection_pool=pool) 
+        if r.scard('proxy_set')>0:
+            ip =  str(r.spop('proxy_set'), "utf-8")     
+            print("ip:"+ip)
+        return ip
 class EqSpider4RedisSpiderMiddleware(object):
     # Not all methods need to be defined. If a method is not defined,
     # scrapy acts as if the spider middleware does not modify the

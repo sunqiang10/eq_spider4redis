@@ -25,7 +25,7 @@ class CeicSpider(RedisSpider):
            # 'eq_spider4redis.middlewares.EqSpider4RedisSpiderMiddleware': 543,
            'eq_spider4redis.middlewares.MyUserAgentMiddleware': 400,
            # 'scrapy.downloadmiddlewares.useragent.UserAgentMiddleware': None,
-           # 'eq_spider4redis.middlewares.ProxyMiddleware': 543
+           'eq_spider4redis.middlewares.ProxyMiddleware': 543
         },
         # 'ITEM_PIPELINES' : {
         #     'eq_spider4redis.pipelines.DuplicatesPipeline': 400,
